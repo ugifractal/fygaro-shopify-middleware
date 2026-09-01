@@ -40,12 +40,11 @@ All values are loaded from `.env.development` / `.env.production` via
 | `FYGARO_API_KEY` | yes | JWT `kid` + inbound hook `Fygaro-Key-ID` | Fygaro API key |
 | `FYGARO_API_SECRET` | yes | JWT HMAC sign + hook `v1` verify | Fygaro API secret |
 | `FYGARO_PAYMENT_LINK_URL` | yes | hosted checkout redirect | e.g. `https://www.fygaro.com/en/pb/<link-uuid>/` |
-| `FIGARO_WEBHOOK_SECRET` | no | hook verify alias | Same value as `FYGARO_API_SECRET` |
-| `FYGARO_WEBHOOK_SECRET` | no | hook verify alias (canonical) | Same value as `FYGARO_API_SECRET` |
+| `FYGARO_WEBHOOK_SECRET` | no | hook verify alias | Same value as `FYGARO_API_SECRET` |
 | `FYGARO_IDR_TO_USD_RATE` | no | `Fygaro::Fx` fallback FX rate | Default `16000`; used only when ECB cache is unavailable |
 
-Both `FIGARO_WEBHOOK_SECRET` and `FYGARO_WEBHOOK_SECRET` are accepted spellings
-for the same value and should be set equal to `FYGARO_API_SECRET`.
+`FYGARO_WEBHOOK_SECRET` is an optional alias and should be set equal to
+`FYGARO_API_SECRET`.
 
 ## Fygaro Hook URL
 
@@ -77,8 +76,7 @@ jwt is checked**.
    `FYGARO_PAYMENT_LINK_URL` in `.env.development` / `.env.production` (see
    Environment variables).
 5. On the same Link, set the **Hook URL** to `https://<HOST>/api/fygaro/hooks`
-   and make sure `FIGARO_WEBHOOK_SECRET` / `FYGARO_WEBHOOK_SECRET` equal
-   `FYGARO_API_SECRET`.
+   and make sure `FYGARO_WEBHOOK_SECRET` equals `FYGARO_API_SECRET`.
 
 The IDR→USD conversion (`Fygaro::Fx`, with the offline
 `FYGARO_IDR_TO_USD_RATE` fallback) happens server-side, so buyers are charged

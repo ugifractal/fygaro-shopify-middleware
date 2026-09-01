@@ -8,7 +8,7 @@ class Api::Fygaro::HooksControllerTest < ActionDispatch::IntegrationTest
     @api_secret = "test-fygaro-secret"
     ENV["FYGARO_API_KEY"] = @api_key
     ENV["FYGARO_API_SECRET"] = @api_secret
-    ENV["FIGARO_WEBHOOK_SECRET"] = @api_secret
+    ENV["FYGARO_WEBHOOK_SECRET"] = @api_secret
 
     @shop = shops(:regular_shop)
     @checkout = FygaroCheckout.create!(

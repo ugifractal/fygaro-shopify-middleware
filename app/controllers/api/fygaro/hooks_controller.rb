@@ -65,11 +65,11 @@ class Api::Fygaro::HooksController < ApplicationController
   end
 
   # Fygaro signs hooks with the API secret keyed by Fygaro-Key-ID (the API key
-  # used in the payment JWT). FIGARO_WEBHOOK_SECRET / FYGARO_WEBHOOK_SECRET are
-  # accepted spellings set to the same value for wiring explicitness.
+  # used in the payment JWT). FYGARO_WEBHOOK_SECRET can be set as an explicit
+  # alias equal to FYGARO_API_SECRET for wiring explicitness.
   def webhook_secret_for(key_id)
     return ENV["FYGARO_API_SECRET"] if key_id == ENV["FYGARO_API_KEY"]
 
-    ENV["FYGARO_API_SECRET"] if key_id == ENV["FIGARO_WEBHOOK_SECRET"] || key_id == ENV["FYGARO_WEBHOOK_SECRET"]
+    ENV["FYGARO_API_SECRET"] if key_id == ENV["FYGARO_WEBHOOK_SECRET"]
   end
 end
