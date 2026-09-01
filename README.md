@@ -61,6 +61,30 @@ The hook verifies `Fygaro-Signature` (HMAC-SHA256), marks the matching
 the Shopify order via the Admin `orderCreate` mutation with a `CUSTOM` payment
 referencing the Fygaro transaction.
 
+## Create a payment Link
+
+Dashboard > Fygaro Links > Create. Choose **Variable Amount**, with **require
+jwt is checked**.
+
+1. **Dashboard → Fygaro Links → Create.**
+2. Amount type → **Variable Amount** — required, because a fixed-amount Link
+   cannot accept the checkout amount/currency from the JWT this middleware
+   mints (`app/services/fygaro/gateway.rb`).
+3. Check **Require JWT** so the Link validates the signed amount/currency
+   before showing the checkout. Do not leave it unchecked.
+4. Save/publish, copy the **Link URL** (e.g.
+   `https://www.fygaro.com/en/pb/<uuid>/`) and set it as
+   `FYGARO_PAYMENT_LINK_URL` in `.env.development` / `.env.production` (see
+   Environment variables).
+5. On the same Link, set the **Hook URL** to `https://<HOST>/api/fygaro/hooks`
+   and make sure `FIGARO_WEBHOOK_SECRET` / `FYGARO_WEBHOOK_SECRET` equal
+   `FYGARO_API_SECRET`.
+
+The IDR→USD conversion (`Fygaro::Fx`, with the offline
+`FYGARO_IDR_TO_USD_RATE` fallback) happens server-side, so buyers are charged
+the USD equivalent of the cart while the Shopify order itself is created in the
+store's native currency (e.g. IDR).
+
 ## Ruby version
 
 Stated in `.ruby-version`. Developed against Ruby 3.4.x.
