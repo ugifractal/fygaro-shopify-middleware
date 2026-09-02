@@ -7,8 +7,8 @@ module Fygaro
   #
   # The order is created in the shop's native currency from the snapshot taken
   # at checkout time — the line-item variants, shipping line, and customer.
-  # Because the buyer already paid Fygaro off-platform, we record a custom
-  # payment (type CUSTOM, gateway "fygaro") referencing the Fygaro transaction
+  # Because the buyer already paid Fygaro off-platform, we record a SALE
+  # transaction (gateway "fygaro") referencing the Fygaro transaction
   # id so the resulting order is marked paid with a clear audit trail.
   #
   # Idempotent: if the checkout already has an order id on file we do not create
@@ -18,8 +18,8 @@ module Fygaro
     class AlreadyCreated < StandardError; end
 
     CREATE_ORDER = <<~GRAPHQL
-      mutation FygaroCreateOrder($input: OrderCreateOrderInput!) {
-        orderCreate(input: $input) {
+      mutation FygaroCreateOrder($order: OrderCreateOrderInput!) {
+        orderCreate(order: $order) {
           order {
             id
             name
@@ -44,7 +44,7 @@ module Fygaro
     def call
       raise AlreadyCreated, "Order already created for #{@checkout.custom_reference}" if @checkout.fygaro_order_id.present?
 
-      body = admin_client.query(query: CREATE_ORDER, variables: { input: order_input }, response_as_struct: false).body
+      body = admin_client.query(query: CREATE_ORDER, variables: { order: order_input }, response_as_struct: false).body
       data = body.dig("data", "orderCreate")
       raise AdminAccessError, user_error_message(data) if data.nil? || Array(data["userErrors"]).any?
 
@@ -75,11 +75,12 @@ module Fygaro
         email: customer["email"],
         customer: customer_input,
         shippingAddress: shipping_address,
-        shippingLine: shipping_line,
+        shippingLines: shipping_lines,
         lineItems: line_items,
         tags: tags,
         customAttributes: custom_attributes,
-        payment: payment
+        transactions: transactions,
+        financialStatus: financial_status
       }.compact
     end
 
@@ -88,14 +89,17 @@ module Fygaro
     end
 
     # Pass the buyer inline so an order can be created without needing a
-    # pre-existing customer id in Shopify.
+    # pre-existing customer id in Shopify. toUpsert is the only way orderCreate
+    # accepts customer details in the current API. Blank values (nil or "") are
+    # omitted so Shopify doesn't reject an empty phone or a bare whitespace name.
     def customer_input
-      {
-        email: customer["email"],
-        firstName: customer["first_name"],
-        lastName: customer["last_name"],
-        phone: customer["phone"]
+      attrs = {
+        email: present(customer["email"]),
+        firstName: present(customer["first_name"]),
+        lastName: present(customer["last_name"]),
+        phone: present(customer["phone"])
       }.compact
+      { toUpsert: attrs } if attrs.any?
     end
 
     def tags
@@ -123,12 +127,20 @@ module Fygaro
       }.compact
     end
 
-    def shipping_line
+    def shipping_lines
       rate = @checkout.shipping_rate || {}
-      {
-        title: value(rate, :title) || "Shipping",
-        price: { amount: minor_to_decimal(value(rate, :price)) }
-      }.compact
+      return if rate.blank?
+
+      [ {
+        title: value(rate, :title).presence || "Shipping",
+        code: value(rate, :handle).to_s.presence,
+        priceSet: {
+          shopMoney: {
+            amount: minor_to_decimal(value(rate, :price)),
+            currencyCode: @checkout.currency
+          }
+        }
+      }.compact ]
     end
 
     def line_items
@@ -140,15 +152,30 @@ module Fygaro
       end
     end
 
-    # Record the off-platform Fygaro tender as a custom payment so the order is
-    # created as paid, referencing the Fygaro transaction for reconciliation.
-    def payment
-      {
-        type: "CUSTOM",
+    # Record the off-platform Fygaro tender as a SALE transaction with SUCCESS
+    # status so the order is created as paid, embedding the Fygaro transaction
+    # id in the receipt and order attributes for reconciliation.
+    def transactions
+      [ {
+        amountSet: {
+          shopMoney: {
+            amount: minor_to_decimal(@checkout.total_amount),
+            currencyCode: @checkout.currency
+          }
+        },
         gateway: "fygaro",
-        paymentIdentifier: @checkout.fygaro_transaction_id.to_s,
-        paymentAmount: minor_to_decimal(@checkout.total_amount)
-      }
+        kind: "SALE",
+        status: "SUCCESS",
+        test: false,
+        receiptJson: {
+          fygaro_transaction_id: @checkout.fygaro_transaction_id.to_s,
+          fygaro_reference: @checkout.custom_reference.to_s
+        }
+      }.compact ]
+    end
+
+    def financial_status
+      "PAID"
     end
 
     def minor_to_decimal(minor_units)
@@ -157,6 +184,12 @@ module Fygaro
 
     def value(hash, key)
       hash[key.to_s] || hash[key]
+    end
+
+    def present(value)
+      return if value.blank?
+
+      value
     end
 
     def user_error_message(data)

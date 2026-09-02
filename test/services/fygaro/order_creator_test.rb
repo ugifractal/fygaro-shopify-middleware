@@ -50,16 +50,20 @@ class Fygaro::OrderCreatorTest < ActiveSupport::TestCase
 
     query, variables = captured
     assert_includes query, "orderCreate"
-    input = variables.fetch(:input)
-    assert_equal [ { variantId: "gid://shopify/ProductVariant/1", quantity: 2 } ], input[:lineItems]
-    assert_equal "Standard", input.dig(:shippingLine, :title)
-    assert_equal({ amount: "9.00" }, input.dig(:shippingLine, :price))
-    assert_equal "CA", input.dig(:shippingAddress, :countryCode)
-    assert_equal "buyer@example.com", input.dig(:customer, :email)
-    assert_equal [ "fygaro", "z1z2z3z4z5z6z7z8z9z0" ], input[:tags]
-    assert_equal "CUSTOM", input.dig(:payment, :type)
-    assert_equal "txn-123", input.dig(:payment, :paymentIdentifier)
-    assert_equal "1009.00", input.dig(:payment, :paymentAmount)
+    order = variables.fetch(:order)
+    assert_equal [ { variantId: "gid://shopify/ProductVariant/1", quantity: 2 } ], order[:lineItems]
+    assert_equal "Standard", order.dig(:shippingLines, 0, :title)
+    assert_equal "9.00", order.dig(:shippingLines, 0, :priceSet, :shopMoney, :amount)
+    assert_equal "IDR", order.dig(:shippingLines, 0, :priceSet, :shopMoney, :currencyCode)
+    assert_equal "CA", order.dig(:shippingAddress, :countryCode)
+    assert_equal({ email: "buyer@example.com", firstName: "Ada", lastName: "Lovelace" }, order.dig(:customer, :toUpsert))
+    assert_equal [ "fygaro", "z1z2z3z4z5z6z7z8z9z0" ], order[:tags]
+    assert_equal "PAID", order[:financialStatus]
+    assert_equal "fygaro", order.dig(:transactions, 0, :gateway)
+    assert_equal "SALE", order.dig(:transactions, 0, :kind)
+    assert_equal "SUCCESS", order.dig(:transactions, 0, :status)
+    assert_equal "1009.00", order.dig(:transactions, 0, :amountSet, :shopMoney, :amount)
+    assert_equal "IDR", order.dig(:transactions, 0, :amountSet, :shopMoney, :currencyCode)
   end
 
   test "raises AlreadyCreated when the checkout already has an order id" do
